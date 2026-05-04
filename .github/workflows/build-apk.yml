@@ -135,7 +135,7 @@ jobs:
           # feed revisions, while avoiding unrelated routing/telephony/video
           # feeds keeps CI smaller than update/install -a.
           ./scripts/feeds update base packages luci
-          ./scripts/feeds install luci-base sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
+          ./scripts/feeds install luci-base ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 
           mkdir -p feeds/local/applications package/feeds/local
           cp feeds/luci/luci.mk feeds/local/luci.mk

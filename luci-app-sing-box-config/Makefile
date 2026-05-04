@@ -1,7 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI support for sing-box router client config
-LUCI_DEPENDS:=+luci-base +sing-box +ucode +ucode-mod-fs +ucode-mod-uci +uclient-fetch +ca-bundle
+LUCI_DEPENDS:=+luci-base +ucode +ucode-mod-fs +ucode-mod-uci +uclient-fetch +ca-bundle
+LUCI_EXTRA_DEPENDS:=sing-box
 LUCI_PKGARCH:=all
 
 PKG_LICENSE:=GPL-3.0-or-later

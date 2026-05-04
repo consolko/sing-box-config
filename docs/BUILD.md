@@ -14,7 +14,8 @@ Use an unprivileged user for OpenWrt builds. Do not build as root.
 The package metadata is in `luci-app-sing-box-config/Makefile` and depends on:
 
 ```make
-+luci-base +sing-box +ucode +ucode-mod-fs +ucode-mod-uci +uclient-fetch +ca-bundle
+LUCI_DEPENDS:=+luci-base +ucode +ucode-mod-fs +ucode-mod-uci +uclient-fetch +ca-bundle
+LUCI_EXTRA_DEPENDS:=sing-box
 ```
 
 ## Build In An OpenWrt SDK
@@ -27,7 +28,7 @@ One simple local layout is:
 
 ```sh
 ./scripts/feeds update base packages luci
-./scripts/feeds install luci-base sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
+./scripts/feeds install luci-base ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 
 mkdir -p feeds/local/applications package/feeds/local
 cp feeds/luci/luci.mk feeds/local/luci.mk
