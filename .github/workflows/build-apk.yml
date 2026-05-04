@@ -149,16 +149,16 @@ jobs:
           set -eu
 
           mkdir -p dist
-          find "$SDK_DIR/bin/packages" -type f -name 'luci-app-sing-box-config_*.apk' -print -exec cp {} dist/ \;
+          find "$SDK_DIR/bin/packages" -type f -name 'luci-app-sing-box-config*.apk' -print -exec cp {} dist/ \;
 
-          if ! ls dist/luci-app-sing-box-config_*.apk >/dev/null 2>&1; then
+          if ! ls dist/luci-app-sing-box-config*.apk >/dev/null 2>&1; then
             echo "No luci-app-sing-box-config APK was produced" >&2
             exit 1
           fi
 
           (
             cd dist
-            sha256sum luci-app-sing-box-config_*.apk > SHA256SUMS
+            sha256sum luci-app-sing-box-config*.apk > SHA256SUMS
           )
 
       - name: Upload workflow artifact
@@ -166,7 +166,7 @@ jobs:
         with:
           name: luci-app-sing-box-config-${{ env.OPENWRT_VERSION }}-${{ env.OPENWRT_TARGET }}-${{ env.OPENWRT_SUBTARGET }}
           path: |
-            dist/luci-app-sing-box-config_*.apk
+            dist/luci-app-sing-box-config*.apk
             dist/SHA256SUMS
           if-no-files-found: error
 
@@ -184,16 +184,16 @@ jobs:
           Install on apk-based OpenWrt:
 
           \`\`\`sh
-          apk add --allow-untrusted ./luci-app-sing-box-config_*.apk
+          apk add --allow-untrusted ./luci-app-sing-box-config*.apk
           \`\`\`
 
           Built with OpenWrt SDK ${OPENWRT_VERSION}/${OPENWRT_TARGET}/${OPENWRT_SUBTARGET}.
           EOF
 
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/luci-app-sing-box-config_*.apk dist/SHA256SUMS --clobber
+            gh release upload "$tag" dist/luci-app-sing-box-config*.apk dist/SHA256SUMS --clobber
           else
-            gh release create "$tag" dist/luci-app-sing-box-config_*.apk dist/SHA256SUMS \
+            gh release create "$tag" dist/luci-app-sing-box-config*.apk dist/SHA256SUMS \
               --title "$tag" \
               --notes-file release-notes.md
           fi

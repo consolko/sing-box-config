@@ -45,7 +45,7 @@ make package/feeds/local/luci-app-sing-box-config/compile V=s
 The resulting package should appear under a target-specific directory such as:
 
 ```text
-bin/packages/<arch>/local/luci-app-sing-box-config_*.apk
+bin/packages/<arch>/local/luci-app-sing-box-config*.apk
 ```
 
 The exact `<arch>` name depends on the SDK target.
@@ -72,7 +72,7 @@ upload workflow artifacts and do not create a release.
 Copy the generated `.apk` to the router and install it:
 
 ```sh
-apk add --allow-untrusted ./luci-app-sing-box-config_*.apk
+apk add --allow-untrusted ./luci-app-sing-box-config*.apk
 ```
 
 If LuCI does not show the page immediately, refresh LuCI caches and restart the

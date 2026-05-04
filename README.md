@@ -45,7 +45,7 @@ target and copy it to the router.
 Install the local package:
 
 ```sh
-apk add --allow-untrusted ./luci-app-sing-box-config_*.apk
+apk add --allow-untrusted ./luci-app-sing-box-config*.apk
 ```
 
 Restart LuCI services if the page is not visible immediately:
@@ -124,9 +124,10 @@ again.
 
 ## Release Process
 
-This repository currently documents a manual GitHub Release flow: build the
-package with the OpenWrt SDK, attach the resulting `.apk` to a GitHub Release,
-and install it with `apk add --allow-untrusted`.
+This repository uses GitHub Actions to build `.apk` artifacts with an OpenWrt
+SDK. Pushes to `main` produce downloadable workflow artifacts. Pushing a tag
+like `v0.1.0` builds the package and attaches the `.apk` plus `SHA256SUMS` to a
+GitHub Release.
 
 See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist.
 
