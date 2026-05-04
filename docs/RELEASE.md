@@ -1,7 +1,8 @@
 # Release Checklist
 
 This project uses GitHub Actions to build `.apk` artifacts with an OpenWrt SDK.
-A hosted apk feed is not part of the current release process.
+Pushes to `main` build workflow artifacts. Version tags create GitHub Release
+assets. A hosted apk feed is not part of the current release process.
 
 ## Before Building
 

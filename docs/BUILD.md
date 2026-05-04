@@ -54,7 +54,7 @@ The exact `<arch>` name depends on the SDK target.
 
 The repository includes `.github/workflows/build-apk.yml`.
 
-Manual build:
+The workflow runs automatically on pushes to `main`. Manual build:
 
 ```text
 Actions -> Build OpenWrt APK -> Run workflow
@@ -64,7 +64,8 @@ Default inputs build for OpenWrt `25.12.2`, target `x86`, subtarget `64`.
 Change those inputs to match the router target.
 
 Pushing a tag like `v0.1.0` runs the same build and uploads the generated `.apk`
-and `SHA256SUMS` to the GitHub Release for that tag.
+and `SHA256SUMS` to the GitHub Release for that tag. Regular `main` pushes only
+upload workflow artifacts and do not create a release.
 
 ## Install The Built Package
 
