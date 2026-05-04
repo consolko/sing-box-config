@@ -131,8 +131,11 @@ jobs:
           set -eu
 
           cd "$SDK_DIR"
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          # Keep SDK feed snapshots for release consistency and avoid pulling
+          # unrelated feed HEAD changes into CI builds.
+          ./scripts/feeds update -i
+          ./scripts/feeds install -p luci luci-base
+          ./scripts/feeds install -p packages sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 
           mkdir -p feeds/local/applications package/feeds/local
           cp feeds/luci/luci.mk feeds/local/luci.mk
@@ -141,8 +144,10 @@ jobs:
           ln -s ../../../feeds/local/applications/luci-app-sing-box-config \
             package/feeds/local/luci-app-sing-box-config
 
-          make defconfig
-          make package/feeds/local/luci-app-sing-box-config/compile V=s
+          # SDK already carries target configuration; for single-package CI
+          # builds we skip explicit defconfig to avoid an extra full Kconfig
+          # pass and reduce warning noise/time.
+          make -j"$(nproc)" package/feeds/local/luci-app-sing-box-config/compile V=s
 
       - name: Collect package artifacts
         run: |

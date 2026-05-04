@@ -35,6 +35,11 @@ Download the generated artifact from the workflow run. It contains:
 - `luci-app-sing-box-config*.apk`;
 - `SHA256SUMS`.
 
+OpenWrt SDK runs can print upstream Kconfig warnings (for example,
+`recursive dependency detected` or `defaults for choice values not supported`).
+Treat the run as failed only when the package compile step or artifact
+collection step fails.
+
 ## Publish A GitHub Release
 
 Create and push a version tag:

@@ -73,8 +73,9 @@ router target and release.
 High-level flow:
 
 ```sh
-./scripts/feeds update -a
-./scripts/feeds install -a
+./scripts/feeds update -i
+./scripts/feeds install -p luci luci-base
+./scripts/feeds install -p packages sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 make package/luci-app-sing-box-config/compile V=s
 ```
 
@@ -130,6 +131,13 @@ like `v0.1.0` builds the package and attaches the `.apk` plus `SHA256SUMS` to a
 GitHub Release.
 
 See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist.
+
+CI note:
+
+- OpenWrt Kconfig logs can include `recursive dependency detected` and
+  `defaults for choice values not supported` lines from upstream feeds. In SDK
+  package builds these warnings can appear even when `luci-app-sing-box-config`
+  is built successfully.
 
 ## License
 

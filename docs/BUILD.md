@@ -26,8 +26,9 @@ two levels below a directory that contains `luci.mk`.
 One simple local layout is:
 
 ```sh
-./scripts/feeds update -a
-./scripts/feeds install -a
+./scripts/feeds update -i
+./scripts/feeds install -p luci luci-base
+./scripts/feeds install -p packages sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 
 mkdir -p feeds/local/applications package/feeds/local
 cp feeds/luci/luci.mk feeds/local/luci.mk
@@ -38,8 +39,7 @@ ln -s ../../../feeds/local/applications/luci-app-sing-box-config package/feeds/l
 Build the package:
 
 ```sh
-make defconfig
-make package/feeds/local/luci-app-sing-box-config/compile V=s
+make -j"$(nproc)" package/feeds/local/luci-app-sing-box-config/compile V=s
 ```
 
 The resulting package should appear under a target-specific directory such as:
@@ -66,6 +66,20 @@ Change those inputs to match the router target.
 Pushing a tag like `v0.1.0` runs the same build and uploads the generated `.apk`
 and `SHA256SUMS` to the GitHub Release for that tag. Regular `main` pushes only
 upload workflow artifacts and do not create a release.
+
+## CI Log Notes
+
+During SDK builds, OpenWrt may print Kconfig warnings such as:
+
+- `recursive dependency detected`
+- `defaults for choice values not supported`
+
+These warnings come from upstream feed metadata parsing and can appear even when
+the target package is built correctly.
+
+Build duration is dominated by dependency toolchains and runtime packages,
+especially `sing-box` and Go components. This is expected for clean GitHub
+Actions runners without a warm build cache.
 
 ## Install The Built Package
 
