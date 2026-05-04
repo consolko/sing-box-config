@@ -1,0 +1,582 @@
+#!/bin/sh
+
+set -eu
+
+GENERATOR="/usr/libexec/sing-box-config/generate.uc"
+IMPORTER="/usr/libexec/sing-box-config/import-current.uc"
+CATALOG_REFRESHER="${CATALOG_REFRESHER:-/usr/libexec/sing-box-config/catalog-refresh.uc}"
+PREVIEW="/tmp/sing-box-config.preview.json"
+TARGET="/etc/sing-box/config.json"
+LAST_ERROR="/var/run/sing-box-config.last_error"
+CATALOG_BUILTIN="${CATALOG_BUILTIN:-/usr/share/sing-box-config/rule-set-catalog.json}"
+CATALOG_CACHE="${CATALOG_CACHE:-/var/lib/sing-box-config/rule-set-catalog.json}"
+RUNTIME_STATUS_TMP_DIR=""
+CATALOG_TMP_DIR=""
+
+write_error() {
+	local msg="$1"
+	printf '%s\n' "$msg" >"$LAST_ERROR"
+}
+
+clear_error() {
+	rm -f "$LAST_ERROR"
+}
+
+json_string() {
+	printf '%s' "$1" | sed -e 's/\x1b\[[0-9;]*m//g' | tr -d '\000-\010\013\014\016-\037' | sed \
+		-e 's/\\/\\\\/g' \
+		-e 's/"/\\"/g' \
+		-e 's/	/\\t/g'
+}
+
+runtime_status_cleanup() {
+	if [ -n "${RUNTIME_STATUS_TMP_DIR:-}" ]; then
+		rm -rf "$RUNTIME_STATUS_TMP_DIR"
+	fi
+}
+
+catalog_refresh_cleanup() {
+	if [ -n "${CATALOG_TMP_DIR:-}" ]; then
+		rm -rf "$CATALOG_TMP_DIR"
+	fi
+}
+
+logs_limit() {
+	local limit="${1:-300}"
+
+	case "$limit" in
+		''|*[!0-9]*)
+			limit=300
+			;;
+	esac
+
+	if [ "$limit" -lt 1 ]; then
+		limit=1
+	elif [ "$limit" -gt 2000 ]; then
+		limit=2000
+	fi
+
+	printf '%s' "$limit"
+}
+
+run_generator() {
+	/usr/bin/ucode "$GENERATOR"
+}
+
+copy_config_file() {
+	local source="$1"
+	local destination="$2"
+
+	cp "$source" "$destination"
+	chmod 0644 "$destination"
+}
+
+sync_service_uci() {
+	local enabled
+
+	enabled="$(uci -q get sing-box-config.main.enabled || echo 0)"
+
+	if ! uci -q get sing-box.main >/dev/null 2>&1; then
+		uci -q set sing-box.main=sing-box
+	fi
+
+	uci -q set sing-box.main.enabled="$enabled"
+	uci -q set sing-box.main.user='root'
+	uci -q set sing-box.main.group='root'
+	uci -q set sing-box.main.conf="$TARGET"
+	uci -q set sing-box.main.workdir='/var/lib/sing-box'
+	uci -q commit sing-box
+
+	if [ "$enabled" = "1" ]; then
+		/etc/init.d/sing-box enable >/dev/null 2>&1 || true
+	else
+		/etc/init.d/sing-box disable >/dev/null 2>&1 || true
+	fi
+}
+
+generate_preview() {
+	local tmp
+	tmp="$(mktemp)"
+
+	clear_error
+
+	if ! run_generator >"$tmp" 2>"$tmp.stderr"; then
+		write_error "$(cat "$tmp.stderr")"
+		rm -f "$tmp" "$tmp.stderr"
+		return 1
+	fi
+
+	mv "$tmp" "$PREVIEW"
+	rm -f "$tmp.stderr"
+	return 0
+}
+
+validate_generated() {
+	local file="$1"
+	local check_log
+	check_log="$(mktemp)"
+
+	if sing-box check -c "$file" >"$check_log" 2>&1; then
+		rm -f "$check_log"
+		return 0
+	fi
+
+	write_error "$(cat "$check_log")"
+	cat "$check_log" >&2
+	rm -f "$check_log"
+	return 1
+}
+
+apply_generated() {
+	local tmp
+	local enabled
+	local service_log
+	tmp="$(mktemp)"
+
+	clear_error
+
+	if ! run_generator >"$tmp" 2>"$tmp.stderr"; then
+		write_error "$(cat "$tmp.stderr")"
+		rm -f "$tmp" "$tmp.stderr"
+		return 1
+	fi
+
+	rm -f "$tmp.stderr"
+
+	if ! validate_generated "$tmp"; then
+		rm -f "$tmp"
+		return 1
+	fi
+
+	mkdir -p /etc/sing-box
+	copy_config_file "$tmp" "$TARGET"
+	copy_config_file "$tmp" "$PREVIEW"
+	rm -f "$tmp"
+
+	sync_service_uci
+
+	enabled="$(uci -q get sing-box.main.enabled || echo 0)"
+	service_log="$(mktemp)"
+	if [ "$enabled" = "1" ]; then
+		if ! /etc/init.d/sing-box restart >"$service_log" 2>&1; then
+			write_error "$(cat "$service_log")"
+			cat "$service_log" >&2
+			rm -f "$service_log"
+			return 1
+		fi
+	else
+		if ! /etc/init.d/sing-box stop >"$service_log" 2>&1; then
+			write_error "$(cat "$service_log")"
+			cat "$service_log" >&2
+			rm -f "$service_log"
+			return 1
+		fi
+	fi
+	rm -f "$service_log"
+
+	clear_error
+	return 0
+}
+
+set_enabled() {
+	local enabled="$1"
+
+	uci -q set sing-box-config.main.enabled="$enabled"
+	uci -q commit sing-box-config
+}
+
+start_service() {
+	set_enabled 1
+	apply_generated
+}
+
+stop_service() {
+	local service_log
+
+	clear_error
+	set_enabled 0
+	sync_service_uci
+
+	service_log="$(mktemp)"
+	if ! /etc/init.d/sing-box stop >"$service_log" 2>&1; then
+		write_error "$(cat "$service_log")"
+		cat "$service_log" >&2
+		rm -f "$service_log"
+		return 1
+	fi
+	rm -f "$service_log"
+	clear_error
+	return 0
+}
+
+restart_service() {
+	set_enabled 1
+	apply_generated
+}
+
+import_current() {
+	local source
+	local backup
+	local import_log
+
+	source="${1:-$TARGET}"
+	backup="/tmp/sing-box-config.backup.$(date +%s).uci"
+	import_log="$(mktemp)"
+
+	clear_error
+
+	if [ ! -r "$source" ]; then
+		write_error "Source JSON not found: $source"
+		return 1
+	fi
+
+	if [ -r "/etc/config/sing-box-config" ]; then
+		cp /etc/config/sing-box-config "$backup" || true
+	fi
+
+	if ! /usr/bin/ucode "$IMPORTER" "$source" >"$import_log" 2>"$import_log.stderr"; then
+		write_error "$(cat "$import_log.stderr")"
+		rm -f "$import_log" "$import_log.stderr"
+		return 1
+	fi
+
+	rm -f "$import_log" "$import_log.stderr"
+
+	uci -q set sing-box-config.main.imported_from_config='1'
+	uci -q set sing-box-config.main.import_source="$source"
+	uci -q set sing-box-config.main.imported_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+	uci -q commit sing-box-config
+
+	clear_error
+	return 0
+}
+
+auto_import_current() {
+	local imported
+
+	imported="$(uci -q get sing-box-config.main.imported_from_config || echo 0)"
+	if [ "$imported" = "1" ]; then
+		return 0
+	fi
+
+	if [ ! -r "$TARGET" ]; then
+		return 0
+	fi
+
+	import_current "$TARGET"
+}
+
+runtime_status_empty() {
+	local enabled="${1:-0}"
+	local listen="${2:-127.0.0.1:9090}"
+	local available="${3:-false}"
+	local reason="${4:-}"
+	local listen_json
+	local reason_json
+
+	listen_json="$(json_string "$listen")"
+	reason_json="$(json_string "$reason")"
+
+	printf '{"clashApi":{"enabled":%s,"available":%s,"listen":"%s","reason":"%s"},"version":null,"proxies":{"proxies":{}},"connections":{"downloadTotal":0,"uploadTotal":0,"connections":[],"memory":0}}\n' \
+		"$enabled" "$available" "$listen_json" "$reason_json"
+}
+
+runtime_status_http_get() {
+	local url="$1"
+	local secret="$2"
+
+	if command -v uclient-fetch >/dev/null 2>&1; then
+		if [ -n "$secret" ]; then
+			uclient-fetch -q -O - --header "Authorization: Bearer $secret" "$url"
+		else
+			uclient-fetch -q -O - "$url"
+		fi
+	elif command -v wget >/dev/null 2>&1; then
+		if [ -n "$secret" ]; then
+			wget -q -O - --header "Authorization: Bearer $secret" "$url"
+		else
+			wget -q -O - "$url"
+		fi
+	else
+		return 127
+	fi
+}
+
+runtime_status() {
+	local enabled
+	local listen
+	local secret
+	local base_url
+	local version_json
+	local proxies_json
+	local connections_json
+	local listen_json
+
+	enabled="$(uci -q get sing-box-config.main.clash_api_enabled || echo 0)"
+	listen="$(uci -q get sing-box-config.main.clash_api_listen || echo 127.0.0.1:9090)"
+	secret="$(uci -q get sing-box-config.main.clash_api_secret || true)"
+
+	if [ "$enabled" != "1" ]; then
+		runtime_status_empty false "$listen" false "disabled"
+		return 0
+	fi
+
+	case "$listen" in
+		127.*:*|localhost:*|\[::1\]:*)
+			;;
+		*)
+			runtime_status_empty true "$listen" false "non-loopback-controller"
+			return 0
+			;;
+	esac
+
+	base_url="http://$listen"
+	RUNTIME_STATUS_TMP_DIR="$(mktemp -d)"
+	trap runtime_status_cleanup EXIT INT TERM
+
+	if ! runtime_status_http_get "$base_url/version" "$secret" >"$RUNTIME_STATUS_TMP_DIR/version" 2>/dev/null; then
+		runtime_status_empty true "$listen" false "api-unavailable"
+		return 0
+	fi
+	if [ ! -s "$RUNTIME_STATUS_TMP_DIR/version" ]; then
+		runtime_status_empty true "$listen" false "api-unavailable"
+		return 0
+	fi
+
+	if ! runtime_status_http_get "$base_url/proxies" "$secret" >"$RUNTIME_STATUS_TMP_DIR/proxies" 2>/dev/null; then
+		runtime_status_empty true "$listen" false "proxies-unavailable"
+		return 0
+	fi
+	if [ ! -s "$RUNTIME_STATUS_TMP_DIR/proxies" ]; then
+		runtime_status_empty true "$listen" false "proxies-unavailable"
+		return 0
+	fi
+
+	if ! runtime_status_http_get "$base_url/connections" "$secret" >"$RUNTIME_STATUS_TMP_DIR/connections" 2>/dev/null; then
+		runtime_status_empty true "$listen" false "connections-unavailable"
+		return 0
+	fi
+	if [ ! -s "$RUNTIME_STATUS_TMP_DIR/connections" ]; then
+		runtime_status_empty true "$listen" false "connections-unavailable"
+		return 0
+	fi
+
+	version_json="$(cat "$RUNTIME_STATUS_TMP_DIR/version")"
+	proxies_json="$(cat "$RUNTIME_STATUS_TMP_DIR/proxies")"
+	connections_json="$(cat "$RUNTIME_STATUS_TMP_DIR/connections")"
+	listen_json="$(json_string "$listen")"
+
+	printf '{"clashApi":{"enabled":true,"available":true,"listen":"%s","reason":""},"version":%s,"proxies":%s,"connections":%s}\n' \
+		"$listen_json" "$version_json" "$proxies_json" "$connections_json"
+}
+
+logs_json_lines() {
+	local file="$1"
+	local first=1
+	local line
+	local line_json
+
+	printf '['
+	while IFS= read -r line || [ -n "$line" ]; do
+		line_json="$(json_string "$line")"
+		if [ "$first" = "1" ]; then
+			first=0
+		else
+			printf ','
+		fi
+		printf '"%s"' "$line_json"
+	done <"$file"
+	printf ']'
+}
+
+logs_read() {
+	local limit
+	local log_tmp
+	local filtered_tmp
+	local reason
+	local reason_json
+	local count
+
+	limit="$(logs_limit "${1:-300}")"
+
+	if ! command -v logread >/dev/null 2>&1; then
+		printf '{"available":false,"source":"logread","limit":%s,"count":0,"reason":"logread-not-found","lines":[]}\n' "$limit"
+		return 0
+	fi
+
+	log_tmp="$(mktemp)"
+	filtered_tmp="$(mktemp)"
+
+	if ! logread -l "$limit" >"$log_tmp" 2>"$log_tmp.stderr"; then
+		reason="$(tr '\n' ' ' <"$log_tmp.stderr")"
+		reason_json="$(json_string "$reason")"
+		rm -f "$log_tmp" "$log_tmp.stderr" "$filtered_tmp"
+		printf '{"available":false,"source":"logread","limit":%s,"count":0,"reason":"%s","lines":[]}\n' "$limit" "$reason_json"
+		return 0
+	fi
+
+	grep -i 'sing-box' "$log_tmp" >"$filtered_tmp" 2>/dev/null || true
+	count="$(wc -l <"$filtered_tmp" | tr -d ' ')"
+
+	printf '{"available":true,"source":"logread","limit":%s,"count":%s,"reason":"","lines":' "$limit" "$count"
+	logs_json_lines "$filtered_tmp"
+	printf '}\n'
+
+	rm -f "$log_tmp" "$log_tmp.stderr" "$filtered_tmp"
+}
+
+catalog_read() {
+	if [ -s "$CATALOG_CACHE" ]; then
+		cat "$CATALOG_CACHE"
+	elif [ -s "$CATALOG_BUILTIN" ]; then
+		cat "$CATALOG_BUILTIN"
+	else
+		printf '{"schema_version":1,"source":"SagerNet","source_type":"empty","updated_at":"","items":[]}\n'
+	fi
+}
+
+catalog_http_get() {
+	local url="$1"
+
+	if command -v uclient-fetch >/dev/null 2>&1; then
+		uclient-fetch -q -O - \
+			--header 'Accept: application/vnd.github+json' \
+			--header 'User-Agent: luci-app-sing-box-config' \
+			"$url"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O - \
+			--header 'Accept: application/vnd.github+json' \
+			--header 'User-Agent: luci-app-sing-box-config' \
+			"$url"
+	else
+		return 127
+	fi
+}
+
+catalog_refresh() {
+	local geosite_url
+	local geoip_url
+	local updated_at
+
+	geosite_url="https://api.github.com/repos/SagerNet/sing-geosite/git/trees/rule-set?recursive=1"
+	geoip_url="https://api.github.com/repos/SagerNet/sing-geoip/git/trees/rule-set?recursive=1"
+	updated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+	clear_error
+	CATALOG_TMP_DIR="$(mktemp -d)"
+	trap catalog_refresh_cleanup EXIT INT TERM
+
+	if ! catalog_http_get "$geosite_url" >"$CATALOG_TMP_DIR/geosite.json" 2>"$CATALOG_TMP_DIR/geosite.stderr"; then
+		local msg
+		msg="$(cat "$CATALOG_TMP_DIR/geosite.stderr")"
+		[ -n "$msg" ] || msg="Unable to fetch GitHub catalog: $geosite_url"
+		write_error "$msg"
+		printf '%s\n' "$msg" >&2
+		return 1
+	fi
+
+	if ! catalog_http_get "$geoip_url" >"$CATALOG_TMP_DIR/geoip.json" 2>"$CATALOG_TMP_DIR/geoip.stderr"; then
+		local msg
+		msg="$(cat "$CATALOG_TMP_DIR/geoip.stderr")"
+		[ -n "$msg" ] || msg="Unable to fetch GitHub catalog: $geoip_url"
+		write_error "$msg"
+		printf '%s\n' "$msg" >&2
+		return 1
+	fi
+
+	if ! /usr/bin/ucode "$CATALOG_REFRESHER" \
+		"$CATALOG_TMP_DIR/geosite.json" \
+		"$CATALOG_TMP_DIR/geoip.json" \
+		"$updated_at" >"$CATALOG_TMP_DIR/catalog.json" 2>"$CATALOG_TMP_DIR/catalog.stderr"; then
+		local msg
+		msg="$(cat "$CATALOG_TMP_DIR/catalog.stderr")"
+		[ -n "$msg" ] || msg="Unable to normalize GitHub catalog"
+		write_error "$msg"
+		printf '%s\n' "$msg" >&2
+		return 1
+	fi
+
+	mkdir -p /var/lib/sing-box-config
+	mv "$CATALOG_TMP_DIR/catalog.json" "$CATALOG_CACHE"
+	chmod 0644 "$CATALOG_CACHE"
+	clear_error
+	cat "$CATALOG_CACHE"
+}
+
+usage() {
+	cat <<'EOF'
+Usage: sing-box-config-cli <command>
+  generate          Print generated config JSON to stdout
+  preview           Generate JSON preview file
+  validate          Generate and validate JSON
+  apply             Generate, validate and install JSON
+  start             Enable, apply and start sing-box
+  stop              Disable and stop sing-box
+  restart           Enable, apply and restart sing-box
+  import-current    Import /etc/sing-box/config.json into UCI model
+  auto-import-current  Import current config once if not imported yet
+  runtime-status   Print sing-box runtime status from local Clash API
+  logs [limit]      Print recent sing-box logread lines as JSON
+  catalog           Print geosite/geoip rule-set catalog JSON
+  catalog-refresh   Refresh geosite/geoip rule-set catalog from GitHub
+  last-error        Print last backend error
+EOF
+}
+
+if [ "${1:-}" = "" ]; then
+	usage >&2
+	exit 1
+fi
+
+case "$1" in
+	generate)
+		clear_error
+		run_generator
+		;;
+	preview)
+		generate_preview
+		;;
+	validate)
+		generate_preview
+		validate_generated "$PREVIEW"
+		;;
+	apply)
+		apply_generated
+		;;
+	start)
+		start_service
+		;;
+	stop)
+		stop_service
+		;;
+	restart)
+		restart_service
+		;;
+	import-current)
+		import_current "${2:-$TARGET}"
+		;;
+	auto-import-current)
+		auto_import_current
+		;;
+	runtime-status)
+		runtime_status
+		;;
+	logs)
+		logs_read "${2:-300}"
+		;;
+	catalog)
+		catalog_read
+		;;
+	catalog-refresh)
+		catalog_refresh
+		;;
+	last-error)
+		if [ -f "$LAST_ERROR" ]; then
+			cat "$LAST_ERROR"
+		fi
+		;;
+	*)
+		usage >&2
+		exit 1
+		;;
+esac

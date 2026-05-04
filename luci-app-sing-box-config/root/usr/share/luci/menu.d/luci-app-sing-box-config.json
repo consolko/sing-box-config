@@ -1,0 +1,78 @@
+{
+  "admin/services/sing-box-config": {
+    "title": "Sing-box Config",
+    "order": 90,
+    "action": {
+      "type": "firstchild"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-sing-box-config"
+      ]
+    }
+  },
+  "admin/services/sing-box-config/general": {
+    "title": "Общее",
+    "order": 10,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/general"
+    }
+  },
+  "admin/services/sing-box-config/dns": {
+    "title": "DNS",
+    "order": 20,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/dns"
+    }
+  },
+  "admin/services/sing-box-config/tun": {
+    "title": "TUN",
+    "order": 30,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/tun"
+    }
+  },
+  "admin/services/sing-box-config/rule-sets": {
+    "title": "Rule sets",
+    "order": 40,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/rule-sets"
+    }
+  },
+  "admin/services/sing-box-config/catalog": {
+    "title": "Каталог списков",
+    "order": 45,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/catalog"
+    }
+  },
+  "admin/services/sing-box-config/routing": {
+    "title": "Routing rules",
+    "order": 50,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/routing"
+    }
+  },
+  "admin/services/sing-box-config/manage": {
+    "title": "Управление",
+    "order": 60,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/manage"
+    }
+  },
+  "admin/services/sing-box-config/logs": {
+    "title": "Логи",
+    "order": 70,
+    "action": {
+      "type": "view",
+      "path": "sing-box-config/logs"
+    }
+  }
+}

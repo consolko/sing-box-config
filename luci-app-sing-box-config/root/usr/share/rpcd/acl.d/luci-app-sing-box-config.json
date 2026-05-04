@@ -1,0 +1,80 @@
+{
+  "luci-app-sing-box-config": {
+    "description": "Grant UCI and exec access for sing-box config app",
+    "read": {
+      "uci": [
+        "sing-box",
+        "sing-box-config"
+      ],
+      "ubus": {
+        "rc": [
+          "list"
+        ],
+        "luci": [
+          "getInitList"
+        ]
+      },
+      "file": {
+        "/usr/libexec/sing-box-config-cli runtime-status": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli logs": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli logs *": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli catalog": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli last-error": [
+          "exec"
+        ],
+        "/tmp/sing-box-config.preview.json": [
+          "read"
+        ],
+        "/var/run/sing-box-config.last_error": [
+          "read"
+        ]
+      }
+    },
+    "write": {
+      "uci": [
+        "sing-box",
+        "sing-box-config"
+      ],
+      "file": {
+        "/usr/libexec/sing-box-config-cli preview": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli validate": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli apply": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli start": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli stop": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli restart": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli import-current": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli import-current *": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli auto-import-current": [
+          "exec"
+        ],
+        "/usr/libexec/sing-box-config-cli catalog-refresh": [
+          "exec"
+        ]
+      }
+    }
+  }
+}

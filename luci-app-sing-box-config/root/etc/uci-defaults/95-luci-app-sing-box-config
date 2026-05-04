@@ -1,0 +1,41 @@
+#!/bin/sh
+
+if ! uci -q get sing-box.main >/dev/null 2>&1; then
+	uci -q set sing-box.main=sing-box
+fi
+
+if [ -z "$(uci -q get sing-box.main.conf)" ]; then
+	uci -q set sing-box.main.conf='/etc/sing-box/config.json'
+fi
+
+if [ -z "$(uci -q get sing-box.main.user)" ]; then
+	uci -q set sing-box.main.user='root'
+fi
+
+if [ -z "$(uci -q get sing-box.main.group)" ]; then
+	uci -q set sing-box.main.group='root'
+fi
+
+if [ -z "$(uci -q get sing-box.main.workdir)" ]; then
+	uci -q set sing-box.main.workdir='/var/lib/sing-box'
+fi
+
+uci -q commit sing-box
+
+/usr/libexec/sing-box-config-cli auto-import-current >/dev/null 2>&1 || true
+
+if uci -q get sing-box-config.main >/dev/null 2>&1; then
+	clash_api_listen="$(uci -q get sing-box-config.main.clash_api_listen)"
+
+	if [ -z "$(uci -q get sing-box-config.main.clash_api_enabled)" ] || [ -z "$clash_api_listen" ]; then
+		uci -q set sing-box-config.main.clash_api_enabled='1'
+	fi
+
+	if [ -z "$clash_api_listen" ]; then
+		uci -q set sing-box-config.main.clash_api_listen='127.0.0.1:9090'
+	fi
+
+	uci -q commit sing-box-config
+fi
+
+exit 0

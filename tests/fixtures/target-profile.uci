@@ -1,0 +1,246 @@
+config global "main"
+	option enabled '0'
+	option log_level 'debug'
+	option log_timestamp '1'
+	option default_outbound 'direct'
+	option experimental_cache_enabled '1'
+	option experimental_cache_path '/tmp/sing-box-cache.db'
+	option clash_api_enabled '1'
+	option clash_api_listen '127.0.0.1:9090'
+	option tun_enable '1'
+	option tun_stack 'system'
+	option tun_auto_route '1'
+	option tun_strict_route '0'
+	option tun_mtu '1420'
+	list tun_address '172.19.0.1/30'
+	option dns_enable '1'
+	option dns_hijack_lan '0'
+	option dns_strategy 'prefer_ipv4'
+	option dns_final 'dns-direct'
+	option dns_cache_capacity '4096'
+	option route_default_domain_resolver_server 'dns-direct'
+	option route_auto_detect_interface '1'
+
+config dns_server
+	option enabled '1'
+	option tag 'dns-direct'
+	option type 'udp'
+	option server '1.1.1.1'
+
+config dns_server
+	option enabled '1'
+	option tag 'dns-remote'
+	option type 'https'
+	option server '1.1.1.1'
+	option path '/dns-query'
+	option detour 'proxy'
+
+config dns_server
+	option enabled '0'
+	option tag 'dns-disabled'
+	option type 'udp'
+	option server '9.9.9.9'
+
+config dns_rule
+	option enabled '1'
+	list rule_set 'my-custom'
+	list rule_set 'geosite-google-deepmind'
+	list rule_set 'geosite-linkedin'
+	list rule_set 'geosite-instagram'
+	list rule_set 'geosite-youtube'
+	list rule_set 'geosite-openai'
+	option action 'route'
+	option server 'dns-remote'
+
+config dns_rule
+	option enabled '0'
+	list domain 'disabled.example'
+	option action 'route'
+	option server 'dns-direct'
+
+config inbound
+	option enabled '1'
+	option type 'direct'
+	option tag 'dns-in'
+	option listen '127.0.0.1'
+	option listen_port '5353'
+
+config inbound
+	option enabled '1'
+	option type 'tun'
+	option tag 'tun-in'
+	option interface_name 'singtun'
+	list address '172.19.0.1/30'
+	option mtu '1420'
+	option auto_route '1'
+	option strict_route '0'
+	option stack 'system'
+
+config inbound
+	option enabled '0'
+	option type 'direct'
+	option tag 'disabled-in'
+	option listen '127.0.0.1'
+	option listen_port '5354'
+
+config outbound
+	option enabled '1'
+	option type 'vless'
+	option tag 'proxy'
+	option server 'example.com'
+	option server_port '443'
+	option uuid '00000000-0000-0000-0000-000000000000'
+	option flow 'xtls-rprx-vision'
+	option tls_enabled '1'
+	option tls_server_name 'dl.google.com'
+	option tls_utls_enabled '1'
+	option tls_utls_fingerprint 'chrome'
+	option tls_reality_enabled '1'
+	option tls_reality_public_key 'REPLACE_WITH_PUBLIC_KEY'
+	option tls_reality_short_id '0123456789abcdef'
+	option extra_json '{"multiplex":{"enabled":true}}'
+
+config outbound
+	option enabled '1'
+	option type 'vless'
+	option tag 'tls-off'
+	option server 'tls-off.example.com'
+	option server_port '443'
+	option uuid '11111111-1111-1111-1111-111111111111'
+	option tls_enabled '0'
+	option tls_server_name 'stale.example.com'
+
+config outbound
+	option enabled '1'
+	option type 'direct'
+	option tag 'direct'
+
+config outbound
+	option enabled '1'
+	option type 'block'
+	option tag 'block'
+
+config outbound
+	option enabled '0'
+	option type 'direct'
+	option tag 'disabled-out'
+
+config rule_set
+	option enabled '1'
+	option type 'local'
+	option tag 'my-custom'
+	option format 'source'
+	option path '/etc/sing-box/rules/proxy-list.json'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geosite-google-deepmind'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google-deepmind.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geosite-linkedin'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-linkedin.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geosite-youtube'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-youtube.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geosite-instagram'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-instagram.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geosite-openai'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '1'
+	option type 'remote'
+	option tag 'geoip-cn'
+	option format 'binary'
+	option url 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs'
+	option update_interval '1d'
+
+config rule_set
+	option enabled '0'
+	option type 'remote'
+	option tag 'disabled-set'
+	option format 'binary'
+	option url 'https://example.com/disabled.srs'
+	option download_detour 'direct'
+	option update_interval '1d'
+
+config route_rule
+	option enabled '1'
+	list protocol 'dns'
+	option action 'hijack-dns'
+
+config route_rule
+	option enabled '1'
+	list inbound 'dns-in'
+	option action 'hijack-dns'
+
+config route_rule
+	option enabled '1'
+	list port '53'
+	option action 'hijack-dns'
+
+config route_rule
+	option enabled '1'
+	option action 'sniff'
+	list sniffer 'http'
+	list sniffer 'tls'
+	list sniffer 'quic'
+
+config route_rule
+	option enabled '1'
+	list network 'udp'
+	list port '443'
+	option action 'block'
+
+config route_rule
+	option enabled '1'
+	option ip_is_private '1'
+	option action 'direct'
+
+config route_rule
+	option enabled '1'
+	list rule_set 'my-custom'
+	list rule_set 'geosite-google-deepmind'
+	list rule_set 'geosite-linkedin'
+	list rule_set 'geosite-instagram'
+	list rule_set 'geosite-youtube'
+	list rule_set 'geosite-openai'
+	list rule_set 'geoip-cn'
+	option action 'route'
+	option outbound 'proxy'
+
+config route_rule
+	option enabled '0'
+	list domain 'disabled-route.example'
+	option action 'route'
+	option outbound 'disabled-out'

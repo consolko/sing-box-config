@@ -1,0 +1,129 @@
+config global "main"
+	option enabled '0'
+	option log_level 'debug'
+	option log_timestamp '1'
+	option default_outbound 'proxy'
+	option experimental_cache_enabled '1'
+	option experimental_cache_path '/tmp/sing-box-cache.db'
+	option clash_api_enabled '1'
+	option clash_api_listen '127.0.0.1:9090'
+	option tun_enable '1'
+	option tun_stack 'system'
+	option tun_auto_route '1'
+	option tun_strict_route '0'
+	option tun_mtu '1420'
+	list tun_address '172.19.0.1/30'
+	option dns_enable '1'
+	option dns_hijack_lan '1'
+	option dns_strategy 'prefer_ipv4'
+	option dns_final 'dns-direct'
+	option dns_cache_capacity '4096'
+	option route_default_domain_resolver_server 'dns-direct'
+	option route_auto_detect_interface '1'
+	option imported_from_config '0'
+
+config dns_server
+	option enabled '1'
+	option label 'Cloudflare UDP'
+	option tag 'dns-direct'
+	option type 'udp'
+	option server '1.1.1.1'
+
+config dns_server
+	option enabled '1'
+	option label 'Cloudflare DoH via proxy'
+	option tag 'dns-remote'
+	option type 'https'
+	option server '1.1.1.1'
+	option path '/dns-query'
+	option detour 'proxy'
+
+config inbound
+	option enabled '1'
+	option label 'DNS Inbound'
+	option tag 'dns-in'
+	option type 'direct'
+	option listen '127.0.0.1'
+	option listen_port '5353'
+
+config inbound
+	option enabled '1'
+	option label 'TUN Inbound'
+	option tag 'tun-in'
+	option type 'tun'
+	option interface_name 'singtun'
+	list address '172.19.0.1/30'
+	option mtu '1420'
+	option auto_route '1'
+	option strict_route '0'
+	option stack 'system'
+
+config dns_rule
+	option enabled '1'
+	option label 'Route selected domains to remote DNS'
+	list rule_set 'my-custom'
+	option action 'route'
+	option server 'dns-remote'
+
+config outbound
+	option enabled '1'
+	option label 'Proxy'
+	option tag 'proxy'
+	option type 'vless'
+	option server 'example.com'
+	option server_port '443'
+	option uuid '00000000-0000-0000-0000-000000000000'
+	option flow 'xtls-rprx-vision'
+	option tls_enabled '1'
+	option tls_server_name 'example.com'
+	option tls_utls_enabled '1'
+	option tls_utls_fingerprint 'chrome'
+	option tls_reality_enabled '1'
+	option tls_reality_public_key 'REPLACE_WITH_PUBLIC_KEY'
+	option tls_reality_short_id '0123456789abcdef'
+
+config outbound
+	option enabled '1'
+	option label 'Direct'
+	option tag 'direct'
+	option type 'direct'
+
+config outbound
+	option enabled '1'
+	option label 'Block'
+	option tag 'block'
+	option type 'block'
+
+config rule_set
+	option enabled '1'
+	option label 'Custom list'
+	option tag 'my-custom'
+	option type 'local'
+	option format 'source'
+	option path '/etc/sing-box/rules/proxy-list.json'
+
+config route_rule
+	option enabled '1'
+	option label 'Block UDP/443'
+	option action 'block'
+	list network 'udp'
+	list port '443'
+
+config route_rule
+	option enabled '1'
+	option label 'Direct private IP'
+	option action 'direct'
+	option ip_is_private '1'
+
+config route_rule
+	option enabled '1'
+	option label 'Route selected domains to proxy'
+	option action 'route'
+	option outbound 'proxy'
+	list rule_set 'my-custom'
+
+config json_fragment
+	option enabled '0'
+	option label 'Custom fragment'
+	option order '100'
+	option path '/etc/sing-box/fragments/custom.json'

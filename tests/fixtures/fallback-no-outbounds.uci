@@ -1,0 +1,7 @@
+config global "main"
+	option enabled '0'
+	option log_level 'info'
+	option default_outbound 'proxy'
+	option route_auto_detect_interface '1'
+	option dns_enable '0'
+	option tun_enable '0'

@@ -1,0 +1,101 @@
+# Build Instructions
+
+This package is built with an OpenWrt SDK or full OpenWrt buildroot that matches
+the target router release and architecture.
+
+Use an unprivileged user for OpenWrt builds. Do not build as root.
+
+## Requirements
+
+- OpenWrt SDK or buildroot for the target release.
+- Standard OpenWrt build dependencies for the host OS.
+- This repository checked out locally.
+
+The package metadata is in `luci-app-sing-box-config/Makefile` and depends on:
+
+```make
++luci-base +sing-box +ucode +ucode-mod-fs +ucode-mod-uci +uclient-fetch +ca-bundle
+```
+
+## Build In An OpenWrt SDK
+
+From the SDK root, copy or symlink the package directory into a package feed or
+local package directory. One simple local layout is:
+
+```sh
+mkdir -p package/custom
+ln -s /path/to/sing-box-config/luci-app-sing-box-config package/custom/luci-app-sing-box-config
+```
+
+Refresh feeds and make the package visible:
+
+```sh
+./scripts/feeds update -a
+./scripts/feeds install -a
+```
+
+Build the package:
+
+```sh
+make package/luci-app-sing-box-config/compile V=s
+```
+
+The resulting package should appear under a target-specific directory such as:
+
+```text
+bin/packages/<arch>/custom/luci-app-sing-box-config_*.apk
+```
+
+The exact `<arch>` and feed directory names depend on the SDK target and where
+the package directory was placed.
+
+## Install The Built Package
+
+Copy the generated `.apk` to the router and install it:
+
+```sh
+apk add --allow-untrusted ./luci-app-sing-box-config_*.apk
+```
+
+If LuCI does not show the page immediately, refresh LuCI caches and restart the
+web services:
+
+```sh
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+/etc/init.d/rpcd restart
+/etc/init.d/uhttpd restart
+```
+
+## Local Static Checks
+
+These checks can run outside OpenWrt:
+
+```sh
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/tools/sing-box-config/common.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/common.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/general.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/dns.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/tun.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/rule-sets.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/catalog.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/routing.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/manage.js
+node --check luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/logs.js
+sh -n luci-app-sing-box-config/root/usr/libexec/sing-box-config-cli
+sh -n luci-app-sing-box-config/root/etc/uci-defaults/95-luci-app-sing-box-config
+sh -n tests/run-fixture-check.sh
+jq empty luci-app-sing-box-config/root/usr/share/luci/menu.d/luci-app-sing-box-config.json
+jq empty luci-app-sing-box-config/root/usr/share/rpcd/acl.d/luci-app-sing-box-config.json
+jq empty luci-app-sing-box-config/root/usr/share/sing-box-config/rule-set-catalog.json
+jq empty tests/fixtures/target-profile.json
+jq empty tests/fixtures/fallback-no-outbounds.json
+```
+
+Generator and profile validation require OpenWrt runtime tools:
+
+- `ucode`
+- `uci`
+- `sing-box`
+
+Run `/usr/libexec/sing-box-config-cli validate` on the router before using a
+profile in production.

@@ -1,0 +1,40 @@
+# macOS and editor files
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local private development notes
+docs/private/
+
+# Logs and temporary output
+*.log
+tmp/
+temp/
+.cache/
+
+# OpenWrt SDK/buildroot output when this package is developed inside a tree
+bin/
+build_dir/
+dl/
+feeds/
+key-build*
+logs/
+package/feeds/
+staging_dir/
+tmp/
+.config
+.config.old
+
+# Package artifacts
+*.apk
+*.ipk
+*.tar
+*.tar.gz
+*.tar.xz
+
+# Local release staging
+dist/
+release/
