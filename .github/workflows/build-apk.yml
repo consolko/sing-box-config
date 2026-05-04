@@ -1,0 +1,197 @@
+name: Build OpenWrt APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: OpenWrt release version
+        required: true
+        default: 25.12.2
+      target:
+        description: OpenWrt target
+        required: true
+        default: x86
+      subtarget:
+        description: OpenWrt subtarget
+        required: true
+        default: "64"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    env:
+      OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || '25.12.2' }}
+      OPENWRT_TARGET: ${{ github.event.inputs.target || 'x86' }}
+      OPENWRT_SUBTARGET: ${{ github.event.inputs.subtarget || '64' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            curl \
+            file \
+            gawk \
+            gettext \
+            git \
+            libncurses-dev \
+            python3 \
+            rsync \
+            tar \
+            unzip \
+            wget \
+            zstd
+
+      - name: Run static checks
+        run: |
+          set -eu
+
+          for file in \
+            luci-app-sing-box-config/htdocs/luci-static/resources/tools/sing-box-config/common.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/common.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/general.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/dns.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/tun.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/rule-sets.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/catalog.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/routing.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/manage.js \
+            luci-app-sing-box-config/htdocs/luci-static/resources/view/sing-box-config/logs.js
+          do
+            node --check "$file"
+          done
+
+          for file in \
+            luci-app-sing-box-config/root/usr/libexec/sing-box-config-cli \
+            luci-app-sing-box-config/root/etc/uci-defaults/95-luci-app-sing-box-config \
+            tests/run-fixture-check.sh
+          do
+            sh -n "$file"
+          done
+
+          for file in \
+            luci-app-sing-box-config/root/usr/share/luci/menu.d/luci-app-sing-box-config.json \
+            luci-app-sing-box-config/root/usr/share/rpcd/acl.d/luci-app-sing-box-config.json \
+            luci-app-sing-box-config/root/usr/share/sing-box-config/rule-set-catalog.json \
+            tests/fixtures/target-profile.json \
+            tests/fixtures/fallback-no-outbounds.json
+          do
+            jq empty "$file"
+          done
+
+      - name: Download OpenWrt SDK
+        run: |
+          set -eu
+
+          base_url="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${OPENWRT_TARGET}/${OPENWRT_SUBTARGET}"
+          sdk_file="$(
+            curl -fsSL "${base_url}/" |
+              sed -n 's/.*href="\([^"]*openwrt-sdk[^"]*Linux-x86_64\.tar\.zst\)".*/\1/p' |
+              head -n 1
+          )"
+
+          if [ -z "$sdk_file" ]; then
+            echo "Unable to find OpenWrt SDK at ${base_url}/" >&2
+            exit 1
+          fi
+
+          case "$sdk_file" in
+            http*) sdk_url="$sdk_file" ;;
+            *) sdk_url="${base_url}/${sdk_file}" ;;
+          esac
+
+          echo "SDK_URL=${sdk_url}" >> "$GITHUB_ENV"
+          curl -fL "$sdk_url" -o openwrt-sdk.tar.zst
+          tar -xf openwrt-sdk.tar.zst
+          sdk_dir="$(find . -maxdepth 1 -type d -name 'openwrt-sdk-*' | head -n 1)"
+
+          if [ -z "$sdk_dir" ]; then
+            echo "Unable to locate extracted SDK directory" >&2
+            exit 1
+          fi
+
+          echo "SDK_DIR=${sdk_dir}" >> "$GITHUB_ENV"
+
+      - name: Build package
+        run: |
+          set -eu
+
+          cd "$SDK_DIR"
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          mkdir -p feeds/local/applications package/feeds/local
+          cp feeds/luci/luci.mk feeds/local/luci.mk
+          rm -rf feeds/local/applications/luci-app-sing-box-config
+          cp -a "$GITHUB_WORKSPACE/luci-app-sing-box-config" feeds/local/applications/luci-app-sing-box-config
+          ln -s ../../../feeds/local/applications/luci-app-sing-box-config \
+            package/feeds/local/luci-app-sing-box-config
+
+          make defconfig
+          make package/feeds/local/luci-app-sing-box-config/compile V=s
+
+      - name: Collect package artifacts
+        run: |
+          set -eu
+
+          mkdir -p dist
+          find "$SDK_DIR/bin/packages" -type f -name 'luci-app-sing-box-config_*.apk' -print -exec cp {} dist/ \;
+
+          if ! ls dist/luci-app-sing-box-config_*.apk >/dev/null 2>&1; then
+            echo "No luci-app-sing-box-config APK was produced" >&2
+            exit 1
+          fi
+
+          (
+            cd dist
+            sha256sum luci-app-sing-box-config_*.apk > SHA256SUMS
+          )
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-sing-box-config-${{ env.OPENWRT_VERSION }}-${{ env.OPENWRT_TARGET }}-${{ env.OPENWRT_SUBTARGET }}
+          path: |
+            dist/luci-app-sing-box-config_*.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+
+          tag="${GITHUB_REF_NAME}"
+          cat > release-notes.md <<EOF
+          Release ${tag}
+
+          Install on apk-based OpenWrt:
+
+          \`\`\`sh
+          apk add --allow-untrusted ./luci-app-sing-box-config_*.apk
+          \`\`\`
+
+          Built with OpenWrt SDK ${OPENWRT_VERSION}/${OPENWRT_TARGET}/${OPENWRT_SUBTARGET}.
+          EOF
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/luci-app-sing-box-config_*.apk dist/SHA256SUMS --clobber
+          else
+            gh release create "$tag" dist/luci-app-sing-box-config_*.apk dist/SHA256SUMS \
+              --title "$tag" \
+              --notes-file release-notes.md
+          fi

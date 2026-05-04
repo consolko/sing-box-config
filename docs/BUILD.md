@@ -19,35 +19,52 @@ The package metadata is in `luci-app-sing-box-config/Makefile` and depends on:
 
 ## Build In An OpenWrt SDK
 
-From the SDK root, copy or symlink the package directory into a package feed or
-local package directory. One simple local layout is:
+From the SDK root, copy or symlink the package directory into a LuCI-style feed
+layout. The package `Makefile` includes `../../luci.mk`, so the package must sit
+two levels below a directory that contains `luci.mk`.
 
-```sh
-mkdir -p package/custom
-ln -s /path/to/sing-box-config/luci-app-sing-box-config package/custom/luci-app-sing-box-config
-```
-
-Refresh feeds and make the package visible:
+One simple local layout is:
 
 ```sh
 ./scripts/feeds update -a
 ./scripts/feeds install -a
+
+mkdir -p feeds/local/applications package/feeds/local
+cp feeds/luci/luci.mk feeds/local/luci.mk
+cp -a /path/to/sing-box-config/luci-app-sing-box-config feeds/local/applications/luci-app-sing-box-config
+ln -s ../../../feeds/local/applications/luci-app-sing-box-config package/feeds/local/luci-app-sing-box-config
 ```
 
 Build the package:
 
 ```sh
-make package/luci-app-sing-box-config/compile V=s
+make defconfig
+make package/feeds/local/luci-app-sing-box-config/compile V=s
 ```
 
 The resulting package should appear under a target-specific directory such as:
 
 ```text
-bin/packages/<arch>/custom/luci-app-sing-box-config_*.apk
+bin/packages/<arch>/local/luci-app-sing-box-config_*.apk
 ```
 
-The exact `<arch>` and feed directory names depend on the SDK target and where
-the package directory was placed.
+The exact `<arch>` name depends on the SDK target.
+
+## Build With GitHub Actions
+
+The repository includes `.github/workflows/build-apk.yml`.
+
+Manual build:
+
+```text
+Actions -> Build OpenWrt APK -> Run workflow
+```
+
+Default inputs build for OpenWrt `25.12.2`, target `x86`, subtarget `64`.
+Change those inputs to match the router target.
+
+Pushing a tag like `v0.1.0` runs the same build and uploads the generated `.apk`
+and `SHA256SUMS` to the GitHub Release for that tag.
 
 ## Install The Built Package
 

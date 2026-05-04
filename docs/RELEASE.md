@@ -1,6 +1,6 @@
 # Release Checklist
 
-This project currently uses a manual GitHub Release flow with `.apk` artifacts.
+This project uses GitHub Actions to build `.apk` artifacts with an OpenWrt SDK.
 A hosted apk feed is not part of the current release process.
 
 ## Before Building
@@ -15,20 +15,37 @@ device-specific LuCI URLs, and local test-stand wording. The scan should not
 report private deployment instructions in tracked public documentation.
 `docs/private/` is ignored and must not be staged.
 
-## Build
+## Build Manually In Actions
 
-Build inside an OpenWrt SDK or full buildroot matching the target release and
-architecture:
-
-```sh
-make package/luci-app-sing-box-config/compile V=s
-```
-
-Find the generated package under `bin/packages/...`, for example:
+To build an artifact without publishing a release:
 
 ```text
-bin/packages/<arch>/<feed>/luci-app-sing-box-config_*.apk
+Actions -> Build OpenWrt APK -> Run workflow
 ```
+
+Use inputs matching the target OpenWrt SDK:
+
+- `openwrt_version`, for example `25.12.2`;
+- `target`, for example `x86`;
+- `subtarget`, for example `64`.
+
+Download the generated artifact from the workflow run. It contains:
+
+- `luci-app-sing-box-config_*.apk`;
+- `SHA256SUMS`.
+
+## Publish A GitHub Release
+
+Create and push a version tag:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `Build OpenWrt APK` workflow builds the package and creates or updates the
+GitHub Release for the pushed tag. It uploads the generated `.apk` and
+`SHA256SUMS`.
 
 ## Smoke Test
 
