@@ -73,9 +73,8 @@ router target and release.
 High-level flow:
 
 ```sh
-./scripts/feeds update -i
-./scripts/feeds install -p luci luci-base
-./scripts/feeds install -p packages sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
+./scripts/feeds update base packages luci
+./scripts/feeds install luci-base sing-box ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
 make package/luci-app-sing-box-config/compile V=s
 ```
 
