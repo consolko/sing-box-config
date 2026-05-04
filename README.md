@@ -76,6 +76,7 @@ High-level flow:
 ```sh
 ./scripts/feeds update base packages luci
 ./scripts/feeds install luci-base ucode ucode-mod-fs ucode-mod-uci uclient-fetch ca-bundle
+make defconfig
 make package/luci-app-sing-box-config/compile V=s
 ```
 

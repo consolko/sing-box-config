@@ -39,6 +39,7 @@ ln -s ../../../feeds/local/applications/luci-app-sing-box-config package/feeds/l
 Build the package:
 
 ```sh
+make defconfig
 make -j"$(nproc)" package/feeds/local/luci-app-sing-box-config/compile V=s
 ```
 

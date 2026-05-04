@@ -144,9 +144,9 @@ jobs:
           ln -s ../../../feeds/local/applications/luci-app-sing-box-config \
             package/feeds/local/luci-app-sing-box-config
 
-          # SDK already carries target configuration; for single-package CI
-          # builds we skip explicit defconfig to avoid an extra full Kconfig
-          # pass and reduce warning noise/time.
+          # Create .config non-interactively. Without this, the compile target
+          # can try to open menuconfig on clean GitHub runners.
+          make defconfig
           make -j"$(nproc)" package/feeds/local/luci-app-sing-box-config/compile V=s
 
       - name: Collect package artifacts
